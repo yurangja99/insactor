@@ -181,7 +181,10 @@ def main():
             pred_motion = torch.stack([outputs[j]['pred_motion'] for j in range(i, i+num_env)], 0)
             pred_motion = pred_motion.detach().cpu().numpy()
             pred_motion = pred_motion * std + mean 
-            np.save('./planned_traj.npy', pred_motion.transpose(1,0,2))
+            #######################################################
+            # EDIT ZONE
+            np.save(f'{args.work_dir}/{phys_setting}{"_perturb" if args.perturb == "true" else ""}_waypoint/planned_traj.npy', pred_motion.transpose(1,0,2))
+            #######################################################
             pred_motion = add_scene_to_traj(pred_motion, None, scene='vis')
             pred_motion_phys = execute_actions(pred_motion, num_env, perturb=args.perturb == 'true')
             pred_motion_phys = np.array(pred_motion_phys)
@@ -189,13 +192,18 @@ def main():
             all_waypoint_dist.append(waypoint_dist)
             reach_cnt = np.zeros_like(waypoint_dist)
             reach_cnt[waypoint_dist<0.5] = 1
-            # print(reach_cnt)
-            # print(waypoint_dist)
-            # print(waypoint_dist.shape)
+            print(f"reach_cnt: {reach_cnt}")
+            print(f"reach_cnt shape: {reach_cnt.shape}")
+            print(reach_cnt)
+            print(waypoint_dist)
+            print(waypoint_dist.shape)
             print('Waypoint Heading Success rate: ',np.sum(reach_cnt) / num_env)
             assert pred_motion_phys.shape == pred_motion.shape, (pred_motion_phys.shape, pred_motion.shape)
             pred_motion_phys = remove_scene_from_traj(pred_motion_phys)[0]
-            np.save('./simulated_traj.npy', pred_motion_phys.transpose(1,0,2))
+            #######################################################
+            # EDIT ZONE
+            np.save(f'{args.work_dir}/{phys_setting}{"_perturb" if args.perturb == "true" else ""}_waypoint/simulated_traj.npy', pred_motion_phys.transpose(1,0,2))
+            #######################################################
             pred_motion_phys = np.array(pred_motion_phys)
             pred_motion_phys = (pred_motion_phys-mean) / (std+1e-9)
             pred_motion_phys = torch.from_numpy(pred_motion_phys).cuda().float()

@@ -32,6 +32,32 @@ class DiversityEvaluator(BaseEvaluator):
         self.motion_encoder = get_motion_model(motion_encoder_name, motion_encoder_path)
         self.model_list = [self.motion_encoder]
         
+    #######################################################
+    # EDIT ZONE
+    def encode_motion(self, motion, motion_length, mask):
+        # implemented by yurangja99
+        
+        size = motion.shape[0]
+        if size > 1500: # depends on CUDA memory limit
+            mid = size // 2
+            if self.motion_encoder_name == 'kit_ttc':
+                motion_emb = torch.cat(tensors=(
+                    (self.motion_encoder(motion[:mid], mask[:mid]))[0],
+                    (self.motion_encoder(motion[mid:], mask[mid:]))[0],
+                ), dim=0)
+            else:
+                motion_emb = torch.cat(tensors=(
+                    self.motion_encoder(motion[:mid], motion_length[:mid], mask[:mid]),
+                    self.motion_encoder(motion[mid:], motion_length[mid:], mask[mid:]),
+                ), dim=0)
+        else:
+            if self.motion_encoder_name == 'kit_ttc':
+                motion_emb = (self.motion_encoder(motion, mask))[0]
+            else:
+                motion_emb = self.motion_encoder(motion, motion_length, mask)
+        motion_emb = motion_emb.cpu().detach().numpy()
+        return motion_emb
+
     def single_evaluate(self, results, gt_flag):
         results = self.prepare_results(results)
         motion = results['motion']
@@ -40,20 +66,23 @@ class DiversityEvaluator(BaseEvaluator):
         motion_mask = results['motion_mask']
         self.motion_encoder.to(motion.device)
         with torch.no_grad():
-            if self.motion_encoder_name == 'kit_ttc':
-                pred_motion_emb = (self.motion_encoder(pred_motion, motion_mask))[0]
-                pred_motion_emb = pred_motion_emb.cpu().detach().numpy()
-                gt_motion_emb = (self.motion_encoder(motion.to(torch.float32), motion_mask))[0]
-                gt_motion_emb = gt_motion_emb.cpu().detach().numpy()
-            else:
-                pred_motion_emb = self.motion_encoder(pred_motion, motion_length, motion_mask).cpu().detach().numpy()
-                gt_motion_emb = self.motion_encoder(motion, motion_length, motion_mask).cpu().detach().numpy()
+            pred_motion_emb = self.encode_motion(pred_motion.to(torch.float32), motion_length, motion_mask)
+            gt_motion_emb = self.encode_motion(motion.to(torch.float32), motion_length, motion_mask)
+            #if self.motion_encoder_name == 'kit_ttc':
+            #    pred_motion_emb = (self.motion_encoder(pred_motion, motion_mask))[0]
+            #    pred_motion_emb = pred_motion_emb.cpu().detach().numpy()
+            #    gt_motion_emb = (self.motion_encoder(motion.to(torch.float32), motion_mask))[0]
+            #    gt_motion_emb = gt_motion_emb.cpu().detach().numpy()
+            #else:
+            #    pred_motion_emb = self.motion_encoder(pred_motion, motion_length, motion_mask).cpu().detach().numpy()
+            #    gt_motion_emb = self.motion_encoder(motion, motion_length, motion_mask).cpu().detach().numpy()
             diversity = calculate_diversity(pred_motion_emb, self.num_samples)
             gt_diversity = calculate_diversity(gt_motion_emb, self.num_samples)
         if gt_flag == 0:
             return diversity
         else:
             return gt_diversity
+    #######################################################
         
     def parse_values(self, values, gt_values):
         metrics = {}

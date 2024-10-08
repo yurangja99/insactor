@@ -42,6 +42,40 @@ Jiawei Ren<sup>*</sup>&emsp;Mingyuan Zhang<sup>*</sup>&emsp;Cunjun Yu<sup>*</sup
 
 </div>
 
+## Yurangja99
+
+### Implemented: Scripts
+
+Implemented scripts for single GPU setting (I use GPU 1 among [0, 1])
+
+- `script-demo.sh`
+- `script-eval.sh`
+- `script-viz.sh`
+
+### Modified: Evaluation
+
+Modified trajectory store directories that align with `script-eval.sh`. 
+
+- `test.py`
+- `test_waypoint.py`
+
+### Note: Metrics
+
+`MatchingScoreEvaluator` in this code seems corresponds to Multimodal distance in the paper. 
+(disparity between the text feature derived from the given instruction and the motion feature
+from the produced animation)
+
+`MultimodalityEvaluator` in this code isn't interpretable in my knowledge. 
+
+### Problems
+
+- evaluation results with perturbation not match with the paper.
+    - for both of HumanML3D and KIT-ML
+    - all metrics worsen
+- success rate of waypoint task not match with the paper.
+    - for both of HumanML3D and KIT-ML
+    - other metrics roughly match
+    
 ## Installation
 ```sh
 conda create -n insactor python==3.9 -y
