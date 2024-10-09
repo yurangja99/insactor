@@ -174,7 +174,7 @@ def main():
             pred_motion_phys = (pred_motion_phys-mean) / (std+1e-9)
             pred_motion_phys = torch.from_numpy(pred_motion_phys).cuda().float()
             for j in range(i, i+num_env):
-                outputs[j]['pred_motion'] = pred_motion_phys[j-i]
+                outputs[j]['pred_motion_phys'] = pred_motion_phys[j-i]
 
         ################
 
@@ -185,9 +185,20 @@ def main():
     rank, _ = get_dist_info()
     if rank == 0:
         mmcv.mkdir_or_exist(osp.abspath(args.work_dir))
+        
+        # eval diffusion-generated plans
         results = dataset.evaluate(outputs, args.work_dir)
+        print('\nEvaluation on planned trajectories')
         for k, v in results.items():
-            print(f'\n{k} : {v:.4f}')
+            print(f'{k} : {v:.4f}')
+        
+        # eval physics-simulated motions
+        for j in range(len(outputs)):
+            outputs[j]['pred_motion'] = outputs[j]['pred_motion_phys']
+        results = dataset.evaluate(outputs, args.work_dir)
+        print('\nEvaluation on simulated trajectories')
+        for k, v in results.items():
+            print(f'{k} : {v:.4f}')
 
     if args.out and rank == 0:
         print(f'\nwriting results to {args.out}')

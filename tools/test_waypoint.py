@@ -176,7 +176,7 @@ def main():
 
 
         print(len(outputs))
-        all_waypoint_dist = []
+        # all_waypoint_dist = []
         for i in tqdm(range(0, len(outputs), num_env)):
             pred_motion = torch.stack([outputs[j]['pred_motion'] for j in range(i, i+num_env)], 0)
             pred_motion = pred_motion.detach().cpu().numpy()
@@ -188,16 +188,18 @@ def main():
             pred_motion = add_scene_to_traj(pred_motion, None, scene='vis')
             pred_motion_phys = execute_actions(pred_motion, num_env, perturb=args.perturb == 'true')
             pred_motion_phys = np.array(pred_motion_phys)
-            waypoint_dist = ((pred_motion_phys[...,-2, 0] - x_ed[i:i+num_env]) ** 2 + (pred_motion_phys[...,-2, 1] - y_ed[i:i+num_env]) ** 2) ** 0.5
-            all_waypoint_dist.append(waypoint_dist)
+            waypoint_dist = ((pred_motion[...,-2, 0] - x_ed[i:i+num_env]) ** 2 + (pred_motion[...,-2, 1] - y_ed[i:i+num_env]) ** 2) ** 0.5
             reach_cnt = np.zeros_like(waypoint_dist)
             reach_cnt[waypoint_dist<0.5] = 1
-            print(f"reach_cnt: {reach_cnt}")
-            print(f"reach_cnt shape: {reach_cnt.shape}")
-            print(reach_cnt)
-            print(waypoint_dist)
-            print(waypoint_dist.shape)
-            print('Waypoint Heading Success rate: ',np.sum(reach_cnt) / num_env)
+            print('Waypoint Heading Success rate (Planned): ',np.sum(reach_cnt) / num_env)
+            waypoint_dist = ((pred_motion_phys[...,-2, 0] - x_ed[i:i+num_env]) ** 2 + (pred_motion_phys[...,-2, 1] - y_ed[i:i+num_env]) ** 2) ** 0.5
+            # all_waypoint_dist.append(waypoint_dist)
+            reach_cnt = np.zeros_like(waypoint_dist)
+            reach_cnt[waypoint_dist<0.5] = 1
+            #print(reach_cnt)
+            #print(waypoint_dist)
+            #print(waypoint_dist.shape)
+            print('Waypoint Heading Success rate (Simulated): ',np.sum(reach_cnt) / num_env)
             assert pred_motion_phys.shape == pred_motion.shape, (pred_motion_phys.shape, pred_motion.shape)
             pred_motion_phys = remove_scene_from_traj(pred_motion_phys)[0]
             #######################################################
@@ -208,9 +210,9 @@ def main():
             pred_motion_phys = (pred_motion_phys-mean) / (std+1e-9)
             pred_motion_phys = torch.from_numpy(pred_motion_phys).cuda().float()
             for j in range(i, i+num_env):
-                outputs[j]['pred_motion'] = pred_motion_phys[j-i]
+                outputs[j]['pred_motion_phys'] = pred_motion_phys[j-i]
 
-        all_waypoint_dist = np.concatenate(all_waypoint_dist, 0)
+        # all_waypoint_dist = np.concatenate(all_waypoint_dist, 0)
         # waypoint_hist = np.stack([2 * x_ed[:len(outputs)], 2* y_ed[:len(outputs)], all_waypoint_dist], -1)
         # np.save('./waypoint_hist.npy', waypoint_hist)
         ################
@@ -218,9 +220,20 @@ def main():
     rank, _ = get_dist_info()
     if rank == 0:
         mmcv.mkdir_or_exist(osp.abspath(args.work_dir))
+
+        # eval diffusion-generated plans
         results = dataset.evaluate(outputs, args.work_dir)
+        print('\nEvaluation on planned trajectories')
         for k, v in results.items():
-            print(f'\n{k} : {v:.4f}')
+            print(f'{k} : {v:.4f}')
+
+        # eval physics-simulated motions
+        for j in range(len(outputs)):
+            outputs[j]['pred_motion'] = outputs[j]['pred_motion_phys']
+        results = dataset.evaluate(outputs, args.work_dir)
+        print('\nEvaluation on simulated trajectories')
+        for k, v in results.items():
+            print(f'{k} : {v:.4f}')
 
     if args.out and rank == 0:
         print(f'\nwriting results to {args.out}')
